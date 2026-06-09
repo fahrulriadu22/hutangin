@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================
+    // USERS COLLECTION
+    // ============================================================
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ============================================================
+    // DEBTORS COLLECTION
+    // ============================================================
+    match /debtors/{debtorId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      allow update: if request.auth != null && 
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'email', 'ratingAvg', 'totalTransactions', 'updatedAt']);
+      
+      allow delete: if request.auth != null && 
+        resource.data.userId == request.auth.uid &&
+        resource.data.totalTransactions == 0;
+    }
+    
+    // ============================================================
+    // TRANSACTIONS ACTIVE COLLECTION
+    // ============================================================
+    match /transactions_active/{transactionId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      allow create: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.amount >= 10000;
+      
+      allow update: if request.auth != null && 
+        resource.data.userId == request.auth.uid &&
+        resource.data.status != 'paid' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'interestRate', 'interestType', 'deadline', 'notes', 'status', 'reminderCount', 'lastReminderAt', 'updatedAt']);
+      
+      allow delete: if false;
+    }
+    
+    // ============================================================
+    // TRANSACTIONS ARCHIVED COLLECTION
+    // ============================================================
+    match /transactions_archived/{transactionId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      allow create: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'paid';
+      
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    // ============================================================
+    // REMINDER LOGS COLLECTION
+    // ============================================================
+    match /reminder_logs/{logId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+    
+    // ============================================================
+    // RATINGS COLLECTION
+    // ============================================================
+    match /ratings/{ratingId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      allow create: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.rating >= 1 && 
+        request.resource.data.rating <= 5;
+      
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    // ============================================================
+    // BLOCKED DEBTORS COLLECTION
+    // ============================================================
+    match /blocked_debtors/{blockId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+  }
+}
