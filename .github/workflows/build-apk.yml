@@ -19,51 +19,50 @@ jobs:
       
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          flutter-version: '3.22.0'
           channel: 'stable'
       
-      - name: Wipe everything
+      - name: Clean everything
         run: |
-          rm -rf ~/.pub-cache
-          rm -rf build
+          rm -f pubspec.lock
           rm -rf .dart_tool
+          rm -rf build
           rm -rf android/app/build
-          rm -rf android/build
-          rm -rf android/.gradle
+          rm -rf ~/.pub-cache
       
-      - name: Clean v1 embedding files from source
+      - name: Fix AndroidManifest
         run: |
-          # Hapus semua file v1
-          find . -name "GeneratedPluginRegistrant.*" -type f -delete
-          find . -name "MainActivity.java" -type f -delete
-          find . -name "io.flutter.app.FlutterActivity" -type f -delete
-          rm -rf android/app/src/main/java/io/ 2>/dev/null || true
-          rm -rf android/app/src/main/kotlin/io/ 2>/dev/null || true
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="Hutangin"
+                  android:name="${applicationName}"
+                  android:icon="@mipmap/ic_launcher">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTop"
+                      android:theme="@style/LaunchTheme"
+                      android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                      android:hardwareAccelerated="true"
+                      android:windowSoftInputMode="adjustResize">
+                      <meta-data
+                          android:name="io.flutter.embedding.android.NormalTheme"
+                          android:resource="@style/NormalTheme" />
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <meta-data
+                      android:name="flutterEmbedding"
+                      android:value="2" />
+              </application>
+          </manifest>
+          EOF
       
-      - name: Ensure AndroidManifest has v2
+      - name: Fix MainActivity
         run: |
-          # Backup dulu
-          cp android/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml.bak
-          
-          # Hapus meta-data lama
-          sed -i '/flutterEmbedding/d' android/app/src/main/AndroidManifest.xml
-          
-          # Tambah meta-data baru di tempat yang benar
-          sed -i 's/<\/application>/    <meta-data android:name="flutterEmbedding" android:value="2" \/>\n<\/application>/' android/app/src/main/AndroidManifest.xml
-      
-      - name: Fix gradle.properties
-        run: |
-          echo "android.useAndroidX=true" > android/gradle.properties
-          echo "android.enableJetifier=true" >> android/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx2g" >> android/gradle.properties
-      
-      - name: Fix local.properties
-        run: |
-          echo "flutter.sdk=/opt/hostedtoolcache/flutter/stable-3.16.0-x64" > android/local.properties
-      
-      - name: Fix MainActivity.kt
-        run: |
-          mkdir -p android/app/src/main/kotlin/com/example/hutangin_apk
           cat > android/app/src/main/kotlin/com/example/hutangin_apk/MainActivity.kt << 'EOF'
           package com.example.hutangin_apk
           
@@ -72,9 +71,19 @@ jobs:
           class MainActivity: FlutterActivity()
           EOF
       
-      - run: flutter pub get
-      - run: flutter clean
-      - run: flutter build apk --release
+      - name: Fix gradle.properties
+        run: |
+          cat > android/gradle.properties << 'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2g
+          EOF
+      
+      - name: Run pub get
+        run: flutter pub get
+      
+      - name: Build APK
+        run: flutter build apk --release
       
       - uses: actions/upload-artifact@v4
         with:
