@@ -19,7 +19,7 @@ jobs:
       
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.16.0'
           channel: 'stable'
       
       - name: Clean everything
@@ -77,6 +77,33 @@ jobs:
           android.useAndroidX=true
           android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2g
+          EOF
+      
+      - name: Fix build.gradle.kts
+        run: |
+          cat > android/build.gradle.kts << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath("com.android.tools.build:gradle:7.4.2")
+                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
+                  classpath("com.google.gms:google-services:4.4.0")
+              }
+          }
+          
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          
+          tasks.register("clean", Delete::class) {
+              delete(rootProject.buildDir)
+          }
           EOF
       
       - name: Run pub get
