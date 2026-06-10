@@ -2,10 +2,8 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:  # Bisa di-run manual dari GitHub
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -24,7 +22,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.16.0'  # Turunkan versi ke yang lebih stabil
           channel: 'stable'
       
       - name: Install dependencies
@@ -32,7 +30,12 @@ jobs:
       
       - name: Create google-services.json
         run: |
-          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+          # Buat file dummy dulu (biar gak error)
+          echo '{"project_info": {"project_number": "", "project_id": "dummy"}, "client": []}' > android/app/google-services.json
+        shell: bash
+      
+      - name: Clean build
+        run: flutter clean
       
       - name: Build APK
         run: flutter build apk --release
@@ -42,3 +45,9 @@ jobs:
         with:
           name: hutangin-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+      
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: hutangin-aab
+          path: build/app/outputs/bundle/release/app-release.aab
