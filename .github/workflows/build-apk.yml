@@ -22,17 +22,36 @@ jobs:
           flutter-version: '3.16.0'
           channel: 'stable'
       
-      - name: Use real google-services.json from repo
+      - name: Backup code
         run: |
-          if [ -f "android/app/google-services.json" ]; then
-            echo "✅ google-services.json found"
-            cat android/app/google-services.json | head -5
-          else
-            echo "❌ google-services.json not found!"
-            exit 1
-          fi
+          mkdir -p ../backup
+          cp -r lib ../backup/
+          cp pubspec.yaml ../backup/
+          cp -r assets ../backup/ 2>/dev/null || true
+          cp android/app/google-services.json ../backup/ 2>/dev/null || true
       
-      - name: Update build.gradle
+      - name: Delete old android folder
+        run: rm -rf android
+      
+      - name: Create fresh Flutter project with v2 embedding
+        run: |
+          cd ..
+          flutter create --platforms=android --project-name=hutangin hutangin_fresh
+          cd hutangin_fresh
+      
+      - name: Copy code to fresh project
+        run: |
+          cp -r ../backup/lib/* ../hutangin_fresh/lib/
+          cp ../backup/pubspec.yaml ../hutangin_fresh/
+          cp -r ../backup/assets ../hutangin_fresh/ 2>/dev/null || true
+          cp ../backup/google-services.json ../hutangin_fresh/android/app/ 2>/dev/null || true
+      
+      - name: Copy android folder back
+        run: |
+          rm -rf android
+          cp -r ../hutangin_fresh/android .
+      
+      - name: Update build.gradle for compileSdk 34
         run: |
           cat > android/app/build.gradle.kts << 'EOF'
           plugins {
@@ -41,7 +60,7 @@ jobs:
           }
           
           android {
-              namespace = "com.example.hutangin_apk"
+              namespace = "com.example.hutangin"
               compileSdk = 34
               ndkVersion = flutter.ndkVersion
               
@@ -51,7 +70,7 @@ jobs:
               }
               
               defaultConfig {
-                  applicationId = "com.example.hutangin_apk"
+                  applicationId = "com.example.hutangin"
                   minSdk = 21
                   targetSdk = 34
                   versionCode = 1
@@ -72,11 +91,11 @@ jobs:
           apply(plugin = "com.google.gms.google-services")
           EOF
       
+      - name: Get dependencies
+        run: flutter pub get
+      
       - name: Build APK
-        run: |
-          flutter clean
-          flutter pub get
-          flutter build apk --release
+        run: flutter build apk --release
       
       - uses: actions/upload-artifact@v4
         with:
