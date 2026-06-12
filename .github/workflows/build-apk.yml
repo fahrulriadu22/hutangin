@@ -50,8 +50,6 @@ jobs:
           
           # Buat build.gradle.kts dengan compileSdk 36
           cat > android/app/build.gradle.kts << 'EOF'
-          import org.jetbrains.kotlin.config.KotlinCompilerVersion
-          
           plugins {
               id("com.android.application")
               id("kotlin-android")
