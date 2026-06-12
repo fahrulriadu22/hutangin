@@ -36,7 +36,6 @@ jobs:
       - name: Create fresh project
         run: |
           flutter create --platforms=android --project-name=hutangin fresh
-          ls -la fresh/android/app/
       
       - name: Copy code to fresh project
         run: |
@@ -45,11 +44,11 @@ jobs:
           cp -r backup/assets fresh/ 2>/dev/null || true
           cp backup/google-services.json fresh/android/app/ 2>/dev/null || true
       
-      - name: Copy android back and create build.gradle
+      - name: Copy android back with compileSdk 36
         run: |
           cp -r fresh/android .
           
-          # Buat build.gradle manual karena Flutter 3.44.1 pake Kotlin DSL
+          # Buat build.gradle.kts dengan compileSdk 36
           cat > android/app/build.gradle.kts << 'EOF'
           import org.jetbrains.kotlin.config.KotlinCompilerVersion
           
@@ -61,7 +60,7 @@ jobs:
           
           android {
               namespace = "com.example.hutangin_apk"
-              compileSdk = 34
+              compileSdk = 36
               ndkVersion = flutter.ndkVersion
               
               compileOptions {
@@ -75,8 +74,8 @@ jobs:
               
               defaultConfig {
                   applicationId = "com.example.hutangin_apk"
-                  minSdk = 21
-                  targetSdk = 34
+                  minSdk = 23
+                  targetSdk = 36
                   versionCode = 1
                   versionName = "1.0"
               }
@@ -90,10 +89,6 @@ jobs:
           
           flutter {
               source = "../.."
-          }
-          
-          dependencies {
-              implementation("com.google.android.material:material:1.9.0")
           }
           
           apply(plugin = "com.google.gms.google-services")
