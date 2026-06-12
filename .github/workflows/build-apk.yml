@@ -22,19 +22,31 @@ jobs:
           flutter-version: '3.44.1'
           channel: 'stable'
       
-      - name: Clean and prepare
+      - name: Clean everything
         run: |
           flutter clean
           rm -rf android/.gradle
-          rm -rf android/app/build
           rm -rf ~/.gradle
-          flutter pub get
+          rm -rf build
+      
+      - name: Regenerate Android project
+        run: |
+          rm -rf android
+          flutter create --platforms=android --project-name=hutangin .
+      
+      - name: Copy google-services.json
+        run: |
+          if [ -f android/app/google-services.json ]; then
+            echo "google-services.json already exists"
+          else
+            echo "Warning: google-services.json not found"
+          fi
+      
+      - name: Get dependencies
+        run: flutter pub get
       
       - name: Build APK
         run: flutter build apk --release
-        env:
-          GRADLE_USER_HOME: /tmp/gradle
-          ORG_GRADLE_PROJECT_android_useAndroidX: true
       
       - uses: actions/upload-artifact@v4
         if: success()
