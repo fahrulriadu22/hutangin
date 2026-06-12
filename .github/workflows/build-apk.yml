@@ -1,8 +1,6 @@
 name: Build APK
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -22,134 +20,50 @@ jobs:
           flutter-version: '3.44.1'
           channel: 'stable'
       
-      - name: Backup lib and assets
+      - name: Update pubspec.yaml with latest Firebase
         run: |
-          mkdir -p backup
-          cp -r lib backup/
-          cp -r assets backup/ 2>/dev/null || true
-          cp pubspec.yaml backup/
-          cp android/app/google-services.json backup/ 2>/dev/null || true
-      
-      - name: Delete android
-        run: rm -rf android
-      
-      - name: Create fresh project
-        run: |
-          flutter create --platforms=android --project-name=hutangin fresh
-      
-      - name: Copy code to fresh project
-        run: |
-          cp -r backup/lib/* fresh/lib/
-          cp backup/pubspec.yaml fresh/
-          cp -r backup/assets fresh/ 2>/dev/null || true
-          cp backup/google-services.json fresh/android/app/ 2>/dev/null || true
-      
-      - name: Copy android back with compileSdk 36
-        run: |
-          cp -r fresh/android .
+          cat > pubspec.yaml << 'EOF'
+          name: hutangin_apk
+          description: Aplikasi catatan hutang pintar
+          publish_to: 'none'
+          version: 1.0.0+1
           
-          # Buat build.gradle.kts dengan compileSdk 36
-          cat > android/app/build.gradle.kts << 'EOF'
-          plugins {
-              id("com.android.application")
-              id("kotlin-android")
-              id("dev.flutter.flutter-gradle-plugin")
-          }
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
           
-          android {
-              namespace = "com.example.hutangin_apk"
-              compileSdk = 36
-              ndkVersion = flutter.ndkVersion
-              
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-              
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
-              
-              defaultConfig {
-                  applicationId = "com.example.hutangin_apk"
-                  minSdk = 23
-                  targetSdk = 36
-                  versionCode = 1
-                  versionName = "1.0"
-              }
-              
-              buildTypes {
-                  release {
-                      signingConfig = signingConfigs.getByName("debug")
-                  }
-              }
-          }
+          dependencies:
+            flutter:
+              sdk: flutter
+            firebase_core: ^3.13.0
+            cloud_firestore: ^5.7.0
+            firebase_auth: ^5.5.0
+            google_sign_in: ^6.3.0
+            provider: ^6.1.1
+            intl: ^0.19.0
+            flutter_svg: ^2.0.10
+            shared_preferences: ^2.3.0
+            image_picker: ^1.1.0
           
-          flutter {
-              source = "../.."
-          }
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^5.0.0
           
-          apply(plugin = "com.google.gms.google-services")
-          EOF
-          
-          cat > android/build.gradle.kts << 'EOF'
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath("com.android.tools.build:gradle:8.1.0")
-                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
-                  classpath("com.google.gms:google-services:4.4.0")
-              }
-          }
-          
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          
-          tasks.register("clean", Delete::class) {
-              delete(rootProject.buildDir)
-          }
+          flutter:
+            uses-material-design: true
           EOF
       
-      - name: Fix local.properties
+      - name: Clean and get dependencies
         run: |
-          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+          rm -rf ~/.pub-cache
+          rm -rf .dart_tool
+          rm -f pubspec.lock
+          rm -rf android
+          flutter clean
+          flutter pub get
       
-      - name: Fix AndroidManifest
-        run: |
-          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="Hutangin" android:name="${applicationName}" android:icon="@mipmap/ic_launcher">
-                  <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-                  <meta-data android:name="flutterEmbedding" android:value="2" />
-              </application>
-          </manifest>
-          EOF
-      
-      - name: Fix MainActivity
-        run: |
-          mkdir -p android/app/src/main/kotlin/com/example/hutangin_apk
-          cat > android/app/src/main/kotlin/com/example/hutangin_apk/MainActivity.kt << 'EOF'
-          package com.example.hutangin_apk
-          
-          import io.flutter.embedding.android.FlutterActivity
-          
-          class MainActivity: FlutterActivity()
-          EOF
-      
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Create android folder
+        run: flutter create --platforms=android .
       
       - name: Build APK
         run: flutter build apk --release
