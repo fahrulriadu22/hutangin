@@ -53,11 +53,10 @@ jobs:
         run: |
           cp -r ../hutangin_fresh/android .
       
-      - name: Configure Gradle with Kotlin 2.0.21
+      - name: Fix build.gradle with Kotlin 2.0.21
         run: |
           PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
           
-          # Buat build.gradle
           cat > android/build.gradle << 'EOF'
           buildscript {
               ext.kotlin_version = '2.0.21'
@@ -80,7 +79,6 @@ jobs:
           }
           EOF
           
-          # Buat app/build.gradle
           cat > android/app/build.gradle << EOF
           def localProperties = new Properties()
           def localPropertiesFile = rootProject.file('local.properties')
@@ -165,13 +163,14 @@ jobs:
           class MainActivity: FlutterActivity()
           EOF
       
-      - name: Clean all caches
+      - name: Clean cache total
         run: |
           rm -rf ~/.gradle/caches/
           rm -rf ~/.pub-cache
           rm -rf android/.gradle
           rm -rf .dart_tool
           rm -f pubspec.lock
+          rm -rf ~/.gradle/wrapper/
           flutter clean
       
       - name: Get dependencies
