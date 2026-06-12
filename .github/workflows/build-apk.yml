@@ -22,7 +22,13 @@ jobs:
           flutter-version: '3.44.1'
           channel: 'stable'
       
-      - name: Get package name from google-services.json
+      - name: Hapus semua file .kts
+        run: |
+          rm -f android/build.gradle.kts
+          rm -f android/app/build.gradle.kts
+          rm -f android/settings.gradle.kts
+      
+      - name: Get package name
         id: get_package
         run: |
           PACKAGE=$(grep -o '"package_name": *"[^"]*"' android/app/google-services.json | head -1 | cut -d'"' -f4)
