@@ -36,6 +36,7 @@ jobs:
       - name: Create fresh project
         run: |
           flutter create --platforms=android --project-name=hutangin fresh
+          ls -la fresh/android/app/
       
       - name: Copy code to fresh project
         run: |
@@ -44,20 +45,115 @@ jobs:
           cp -r backup/assets fresh/ 2>/dev/null || true
           cp backup/google-services.json fresh/android/app/ 2>/dev/null || true
       
-      - name: Copy android back and force compileSdk 34
+      - name: Copy android back and create build.gradle
         run: |
           cp -r fresh/android .
           
-          # Force compileSdk ke 34
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/g' android/app/build.gradle
+          # Buat build.gradle manual karena Flutter 3.44.1 pake Kotlin DSL
+          cat > android/app/build.gradle.kts << 'EOF'
+          import org.jetbrains.kotlin.config.KotlinCompilerVersion
           
-          # Force targetSdk ke 34
-          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle
-          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 34/g' android/app/build.gradle
+          plugins {
+              id("com.android.application")
+              id("kotlin-android")
+              id("dev.flutter.flutter-gradle-plugin")
+          }
           
-          # Cek hasilnya
-          cat android/app/build.gradle | grep -E "(compileSdk|targetSdk)"
+          android {
+              namespace = "com.example.hutangin_apk"
+              compileSdk = 34
+              ndkVersion = flutter.ndkVersion
+              
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+              
+              defaultConfig {
+                  applicationId = "com.example.hutangin_apk"
+                  minSdk = 21
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+              
+              buildTypes {
+                  release {
+                      signingConfig = signingConfigs.getByName("debug")
+                  }
+              }
+          }
+          
+          flutter {
+              source = "../.."
+          }
+          
+          dependencies {
+              implementation("com.google.android.material:material:1.9.0")
+          }
+          
+          apply(plugin = "com.google.gms.google-services")
+          EOF
+          
+          cat > android/build.gradle.kts << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath("com.android.tools.build:gradle:8.1.0")
+                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
+                  classpath("com.google.gms:google-services:4.4.0")
+              }
+          }
+          
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          
+          tasks.register("clean", Delete::class) {
+              delete(rootProject.buildDir)
+          }
+          EOF
+      
+      - name: Fix local.properties
+        run: |
+          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+      
+      - name: Fix AndroidManifest
+        run: |
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application android:label="Hutangin" android:name="${applicationName}" android:icon="@mipmap/ic_launcher">
+                  <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <meta-data android:name="flutterEmbedding" android:value="2" />
+              </application>
+          </manifest>
+          EOF
+      
+      - name: Fix MainActivity
+        run: |
+          mkdir -p android/app/src/main/kotlin/com/example/hutangin_apk
+          cat > android/app/src/main/kotlin/com/example/hutangin_apk/MainActivity.kt << 'EOF'
+          package com.example.hutangin_apk
+          
+          import io.flutter.embedding.android.FlutterActivity
+          
+          class MainActivity: FlutterActivity()
+          EOF
       
       - name: Get dependencies
         run: flutter pub get
