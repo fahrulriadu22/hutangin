@@ -19,155 +19,17 @@ jobs:
       
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.13.9'
+          flutter-version: '3.44.1'
           channel: 'stable'
       
-      - name: Backup code
-        run: |
-          mkdir -p ../backup
-          cp -r lib ../backup/
-          cp -r assets ../backup/ 2>/dev/null || true
-          cp android/app/google-services.json ../backup/
-      
-      - name: Get package name
+      - name: Get package name from google-services.json
         id: get_package
         run: |
-          PACKAGE=$(grep -o '"package_name": *"[^"]*"' ../backup/google-services.json | head -1 | cut -d'"' -f4)
+          PACKAGE=$(grep -o '"package_name": *"[^"]*"' android/app/google-services.json | head -1 | cut -d'"' -f4)
           echo "package_name=$PACKAGE" >> $GITHUB_OUTPUT
+          echo "Package name: $PACKAGE"
       
-      - name: Delete old android
-        run: rm -rf android
-      
-      - name: Create fresh Flutter project
-        run: |
-          cd ..
-          flutter create --platforms=android --project-name=hutangin hutangin_fresh
-      
-      - name: Copy code
-        run: |
-          cp -r ../backup/lib/* ../hutangin_fresh/lib/
-          cp ../backup/google-services.json ../hutangin_fresh/android/app/
-          cp -r ../backup/assets ../hutangin_fresh/ 2>/dev/null || true
-      
-      - name: Copy android back
-        run: |
-          cp -r ../hutangin_fresh/android .
-      
-      - name: Hapus semua file Kotlin (pindah ke Java)
-        run: |
-          # Hapus file Kotlin build.gradle
-          rm -f android/build.gradle.kts
-          rm -f android/app/build.gradle.kts
-          
-          # Hapus folder kotlin
-          rm -rf android/app/src/main/kotlin
-          
-          # Buat MainActivity.java (Java, bukan Kotlin)
-          PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
-          PACKAGE_PATH=$(echo $PACKAGE_NAME | tr '.' '/')
-          mkdir -p android/app/src/main/java/$PACKAGE_PATH
-          cat > android/app/src/main/java/$PACKAGE_PATH/MainActivity.java << EOF
-          package $PACKAGE_NAME;
-          
-          import io.flutter.embedding.android.FlutterActivity;
-          
-          public class MainActivity extends FlutterActivity {
-          }
-          EOF
-      
-      - name: Buat build.gradle (Java, tanpa Kotlin)
-        run: |
-          PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
-          
-          cat > android/build.gradle << 'EOF'
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:7.4.2'
-                  classpath 'com.google.gms:google-services:4.3.15'
-              }
-          }
-          
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
-          
-          cat > android/app/build.gradle << EOF
-          def localProperties = new Properties()
-          def localPropertiesFile = rootProject.file('local.properties')
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader('UTF-8') { reader ->
-                  localProperties.load(reader)
-              }
-          }
-          
-          def flutterRoot = localProperties.getProperty('flutter.sdk')
-          if (flutterRoot == null) {
-              throw new GradleException("Flutter SDK not found.")
-          }
-          
-          apply plugin: 'com.android.application'
-          apply from: "\$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
-          
-          android {
-              namespace "$PACKAGE_NAME"
-              compileSdk 34
-              
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              
-              defaultConfig {
-                  applicationId "$PACKAGE_NAME"
-                  minSdk 21
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-              
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.debug
-                  }
-              }
-          }
-          
-          flutter {
-              source '../..'
-          }
-          
-          apply plugin: 'com.google.gms.google-services'
-          EOF
-      
-      - name: Create local.properties
-        run: |
-          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
-      
-      - name: Fix AndroidManifest
-        run: |
-          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="Hutangin" android:name="${applicationName}" android:icon="@mipmap/ic_launcher">
-                  <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-                  <meta-data android:name="flutterEmbedding" android:value="2" />
-              </application>
-          </manifest>
-          EOF
-      
-      - name: Clean cache total
+      - name: Clean cache
         run: |
           rm -rf ~/.gradle/caches/
           rm -rf ~/.pub-cache
