@@ -30,6 +30,13 @@ jobs:
           cp -r assets ../backup/ 2>/dev/null || true
           cp android/app/google-services.json ../backup/ 2>/dev/null || true
       
+      - name: Get package name from google-services.json
+        id: get_package
+        run: |
+          PACKAGE=$(grep -o '"package_name": *"[^"]*"' ../backup/google-services.json | head -1 | cut -d'"' -f4)
+          echo "package_name=$PACKAGE" >> $GITHUB_OUTPUT
+          echo "Package name: $PACKAGE"
+      
       - name: Delete old android
         run: rm -rf android
       
@@ -43,17 +50,22 @@ jobs:
           cp -r ../backup/lib/* ../hutangin_fresh/lib/
           cp ../backup/pubspec.yaml ../hutangin_fresh/
           cp -r ../backup/assets ../hutangin_fresh/ 2>/dev/null || true
-          cp ../backup/google-services.json ../hutangin_fresh/android/app/ 2>/dev/null || true
+          cp ../backup/google-services.json ../hutangin_fresh/android/app/
       
       - name: Copy android folder back
         run: |
           cp -r ../hutangin_fresh/android .
       
-      - name: Delete .kts files and use .gradle
+      - name: Delete .kts files and use .gradle with correct package name
         run: |
           # Hapus file .kts
           rm -f android/build.gradle.kts
           rm -f android/app/build.gradle.kts
+          
+          PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
+          if [ -z "$PACKAGE_NAME" ]; then
+            PACKAGE_NAME="com.example.hutangin"
+          fi
           
           # Buat build.gradle (Groovy)
           cat > android/build.gradle << 'EOF'
@@ -89,8 +101,8 @@ jobs:
           }
           EOF
           
-          # Buat app/build.gradle
-          cat > android/app/build.gradle << 'EOF'
+          # Buat app/build.gradle dengan package name yang benar
+          cat > android/app/build.gradle << EOF
           def localProperties = new Properties()
           def localPropertiesFile = rootProject.file('local.properties')
           if (localPropertiesFile.exists()) {
@@ -116,10 +128,10 @@ jobs:
           
           apply plugin: 'com.android.application'
           apply plugin: 'kotlin-android'
-          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+          apply from: "\$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
           
           android {
-              namespace "com.example.hutangin"
+              namespace "$PACKAGE_NAME"
               compileSdk 34
               ndkVersion flutter.ndkVersion
               
@@ -137,7 +149,7 @@ jobs:
               }
               
               defaultConfig {
-                  applicationId "com.example.hutangin"
+                  applicationId "$PACKAGE_NAME"
                   minSdk 21
                   targetSdk 34
                   versionCode flutterVersionCode.toInteger()
@@ -161,6 +173,19 @@ jobs:
       - name: Create local.properties
         run: |
           echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+      
+      - name: Update MainActivity with correct package
+        run: |
+          PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
+          PACKAGE_PATH=$(echo $PACKAGE_NAME | tr '.' '/')
+          mkdir -p android/app/src/main/kotlin/$PACKAGE_PATH
+          cat > android/app/src/main/kotlin/$PACKAGE_PATH/MainActivity.kt << EOF
+          package $PACKAGE_NAME
+          
+          import io.flutter.embedding.android.FlutterActivity
+          
+          class MainActivity: FlutterActivity()
+          EOF
       
       - name: Get dependencies
         run: flutter pub get
