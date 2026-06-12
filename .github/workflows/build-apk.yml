@@ -22,7 +22,7 @@ jobs:
           flutter-version: '3.44.1'
           channel: 'stable'
       
-      - name: Backup code
+      - name: Backup lib and assets
         run: |
           mkdir -p backup
           cp -r lib backup/
@@ -30,23 +30,34 @@ jobs:
           cp pubspec.yaml backup/
           cp android/app/google-services.json backup/ 2>/dev/null || true
       
-      - name: Delete old android
+      - name: Delete android
         run: rm -rf android
       
-      - name: Create fresh Flutter project
+      - name: Create fresh project
         run: |
-          flutter create --platforms=android --project-name=hutangin fresh_project
+          flutter create --platforms=android --project-name=hutangin fresh
       
       - name: Copy code to fresh project
         run: |
-          cp -r backup/lib/* fresh_project/lib/
-          cp backup/pubspec.yaml fresh_project/
-          cp -r backup/assets fresh_project/ 2>/dev/null || true
-          cp backup/google-services.json fresh_project/android/app/ 2>/dev/null || true
+          cp -r backup/lib/* fresh/lib/
+          cp backup/pubspec.yaml fresh/
+          cp -r backup/assets fresh/ 2>/dev/null || true
+          cp backup/google-services.json fresh/android/app/ 2>/dev/null || true
       
-      - name: Copy android folder back
+      - name: Copy android back and force compileSdk 34
         run: |
-          cp -r fresh_project/android .
+          cp -r fresh/android .
+          
+          # Force compileSdk ke 34
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/g' android/app/build.gradle
+          
+          # Force targetSdk ke 34
+          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle
+          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 34/g' android/app/build.gradle
+          
+          # Cek hasilnya
+          cat android/app/build.gradle | grep -E "(compileSdk|targetSdk)"
       
       - name: Get dependencies
         run: flutter pub get
