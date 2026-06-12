@@ -1,6 +1,8 @@
 name: Build APK
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -17,53 +19,13 @@ jobs:
       
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.1'
+          flutter-version: '3.24.0'
           channel: 'stable'
       
-      - name: Update pubspec.yaml with latest Firebase
+      - name: Clean Flutter
         run: |
-          cat > pubspec.yaml << 'EOF'
-          name: hutangin_apk
-          description: Aplikasi catatan hutang pintar
-          publish_to: 'none'
-          version: 1.0.0+1
-          
-          environment:
-            sdk: '>=3.0.0 <4.0.0'
-          
-          dependencies:
-            flutter:
-              sdk: flutter
-            firebase_core: ^3.13.0
-            cloud_firestore: ^5.7.0
-            firebase_auth: ^5.5.0
-            google_sign_in: ^6.3.0
-            provider: ^6.1.1
-            intl: ^0.19.0
-            flutter_svg: ^2.0.10
-            shared_preferences: ^2.3.0
-            image_picker: ^1.1.0
-          
-          dev_dependencies:
-            flutter_test:
-              sdk: flutter
-            flutter_lints: ^5.0.0
-          
-          flutter:
-            uses-material-design: true
-          EOF
-      
-      - name: Clean and get dependencies
-        run: |
-          rm -rf ~/.pub-cache
-          rm -rf .dart_tool
-          rm -f pubspec.lock
-          rm -rf android
           flutter clean
           flutter pub get
-      
-      - name: Create android folder
-        run: flutter create --platforms=android .
       
       - name: Build APK
         run: flutter build apk --release
