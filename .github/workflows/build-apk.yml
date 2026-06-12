@@ -19,16 +19,48 @@ jobs:
       
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          flutter-version: '3.13.9'
           channel: 'stable'
       
-      - name: Backup code
+      - name: Backup code and downgrade firebase versions
         run: |
           mkdir -p ../backup
           cp -r lib ../backup/
-          cp pubspec.yaml ../backup/
           cp -r assets ../backup/ 2>/dev/null || true
           cp android/app/google-services.json ../backup/ 2>/dev/null || true
+          
+          # Turunkan versi firebase di pubspec.yaml
+          cat > pubspec.yaml << 'EOF'
+          name: hutangin_apk
+          description: Aplikasi catatan hutang pintar
+          publish_to: 'none'
+          version: 1.0.0+1
+          
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
+          
+          dependencies:
+            flutter:
+              sdk: flutter
+            firebase_core: ^2.24.2
+            cloud_firestore: ^4.14.0
+            firebase_auth: ^4.16.0
+            google_sign_in: ^6.1.0
+            provider: ^6.1.1
+            intl: ^0.18.1
+            flutter_svg: ^2.0.9
+            onesignal_flutter: ^5.0.0
+            shared_preferences: ^2.2.2
+            image_picker: ^1.0.5
+          
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^3.0.0
+          
+          flutter:
+            uses-material-design: true
+          EOF
       
       - name: Get package name from google-services.json
         id: get_package
@@ -48,7 +80,7 @@ jobs:
       - name: Copy code to fresh project
         run: |
           cp -r ../backup/lib/* ../hutangin_fresh/lib/
-          cp ../backup/pubspec.yaml ../hutangin_fresh/
+          cp pubspec.yaml ../hutangin_fresh/
           cp -r ../backup/assets ../hutangin_fresh/ 2>/dev/null || true
           cp ../backup/google-services.json ../hutangin_fresh/android/app/
       
@@ -56,7 +88,7 @@ jobs:
         run: |
           cp -r ../hutangin_fresh/android .
       
-      - name: Configure Gradle with Kotlin 2.0.21 and Gradle 8.3
+      - name: Configure Gradle
         run: |
           # Hapus file .kts
           rm -f android/build.gradle.kts
@@ -67,23 +99,18 @@ jobs:
             PACKAGE_NAME="com.example.hutangin"
           fi
           
-          # Update gradle wrapper ke 8.3
-          cd android
-          ./gradlew wrapper --gradle-version=8.3 --distribution-type=bin
-          cd ..
-          
-          # Buat build.gradle dengan Kotlin 2.0.21
+          # Buat build.gradle
           cat > android/build.gradle << 'EOF'
           buildscript {
-              ext.kotlin_version = '2.0.21'
+              ext.kotlin_version = '1.9.0'
               repositories {
                   google()
                   mavenCentral()
               }
               dependencies {
-                  classpath 'com.android.tools.build:gradle:8.3.0'
+                  classpath 'com.android.tools.build:gradle:7.4.2'
                   classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-                  classpath 'com.google.gms:google-services:4.4.1'
+                  classpath 'com.google.gms:google-services:4.3.15'
               }
           }
           
@@ -119,7 +146,7 @@ jobs:
           
           def flutterRoot = localProperties.getProperty('flutter.sdk')
           if (flutterRoot == null) {
-              throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+              throw new GradleException("Flutter SDK not found.")
           }
           
           def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
@@ -150,10 +177,6 @@ jobs:
                   jvmTarget = '17'
               }
               
-              sourceSets {
-                  main.java.srcDirs += 'src/main/kotlin'
-              }
-              
               defaultConfig {
                   applicationId "$PACKAGE_NAME"
                   minSdk 21
@@ -180,17 +203,33 @@ jobs:
         run: |
           echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
       
-      - name: Update gradle-wrapper.properties
+      - name: Fix AndroidManifest.xml
         run: |
-          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.3-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
+          mkdir -p android/app/src/main
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="Hutangin"
+                  android:name="${applicationName}"
+                  android:icon="@mipmap/ic_launcher">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTop"
+                      android:theme="@style/LaunchTheme">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <meta-data
+                      android:name="flutterEmbedding"
+                      android:value="2" />
+              </application>
+          </manifest>
           EOF
       
-      - name: Update MainActivity with correct package
+      - name: Fix MainActivity
         run: |
           PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
           PACKAGE_PATH=$(echo $PACKAGE_NAME | tr '.' '/')
@@ -203,10 +242,12 @@ jobs:
           class MainActivity: FlutterActivity()
           EOF
       
-      - name: Clean Gradle cache completely
+      - name: Clean everything
         run: |
           rm -rf ~/.gradle/caches/
+          rm -rf ~/.pub-cache
           rm -rf android/.gradle
+          flutter clean
       
       - name: Get dependencies
         run: flutter pub get
