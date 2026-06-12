@@ -37,13 +37,6 @@ jobs:
           echo "package_name=$PACKAGE" >> $GITHUB_OUTPUT
           echo "Package name: $PACKAGE"
       
-      - name: Clean Gradle caches completely
-        run: |
-          rm -rf ~/.gradle/caches/
-          rm -rf ~/.gradle/wrapper/
-          rm -rf .gradle
-          rm -rf android/.gradle
-      
       - name: Delete old android
         run: rm -rf android
       
@@ -63,7 +56,7 @@ jobs:
         run: |
           cp -r ../hutangin_fresh/android .
       
-      - name: Configure Gradle with Kotlin 2.1.0
+      - name: Configure Gradle with correct versions
         run: |
           # Hapus file .kts
           rm -f android/build.gradle.kts
@@ -74,16 +67,21 @@ jobs:
             PACKAGE_NAME="com.example.hutangin"
           fi
           
-          # Buat build.gradle dengan Kotlin 2.1.0
+          # Update gradle wrapper ke 8.0
+          cd android
+          ./gradlew wrapper --gradle-version=8.0 --distribution-type=bin
+          cd ..
+          
+          # Buat build.gradle dengan Kotlin 2.0.20 dan Gradle 8.0
           cat > android/build.gradle << 'EOF'
           buildscript {
-              ext.kotlin_version = '2.1.0'
+              ext.kotlin_version = '2.0.20'
               repositories {
                   google()
                   mavenCentral()
               }
               dependencies {
-                  classpath 'com.android.tools.build:gradle:8.1.0'
+                  classpath 'com.android.tools.build:gradle:8.0.0'
                   classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
                   classpath 'com.google.gms:google-services:4.4.0'
               }
@@ -198,6 +196,11 @@ jobs:
           
           class MainActivity: FlutterActivity()
           EOF
+      
+      - name: Clean Gradle caches
+        run: |
+          rm -rf ~/.gradle/caches/
+          rm -rf android/.gradle
       
       - name: Get dependencies
         run: flutter pub get
