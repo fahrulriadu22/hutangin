@@ -1,11 +1,13 @@
 name: Build APK
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
@@ -20,48 +22,72 @@ jobs:
           flutter-version: '3.13.9'
           channel: 'stable'
       
-      - name: Buat ulang android folder dari nol
+      - name: Backup code
         run: |
-          # Backup dulu
           mkdir -p ../backup
           cp -r lib ../backup/
-          cp pubspec.yaml ../backup/
           cp -r assets ../backup/ 2>/dev/null || true
           cp android/app/google-services.json ../backup/
-          
-          # Hapus android folder
-          rm -rf android
-          
-          # Buat project Flutter baru di luar
-          cd ..
-          flutter create --platforms=android --project-name=hutangin_new hutangin_temp
-          
-          # Pindahkan android folder ke project asli
-          cp -r hutangin_temp/android ../hutangin/
-          
-          cd ../hutangin
       
-      - name: Setup gradle.properties
+      - name: Get package name
+        id: get_package
         run: |
-          cat > android/gradle.properties << 'EOF'
-          android.useAndroidX=true
-          android.enableJetifier=true
-          org.gradle.jvmargs=-Xmx2g
+          PACKAGE=$(grep -o '"package_name": *"[^"]*"' ../backup/google-services.json | head -1 | cut -d'"' -f4)
+          echo "package_name=$PACKAGE" >> $GITHUB_OUTPUT
+      
+      - name: Delete old android
+        run: rm -rf android
+      
+      - name: Create fresh Flutter project
+        run: |
+          cd ..
+          flutter create --platforms=android --project-name=hutangin hutangin_fresh
+      
+      - name: Copy code
+        run: |
+          cp -r ../backup/lib/* ../hutangin_fresh/lib/
+          cp ../backup/google-services.json ../hutangin_fresh/android/app/
+          cp -r ../backup/assets ../hutangin_fresh/ 2>/dev/null || true
+      
+      - name: Copy android back
+        run: |
+          cp -r ../hutangin_fresh/android .
+      
+      - name: Hapus semua file Kotlin (pindah ke Java)
+        run: |
+          # Hapus file Kotlin build.gradle
+          rm -f android/build.gradle.kts
+          rm -f android/app/build.gradle.kts
+          
+          # Hapus folder kotlin
+          rm -rf android/app/src/main/kotlin
+          
+          # Buat MainActivity.java (Java, bukan Kotlin)
+          PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
+          PACKAGE_PATH=$(echo $PACKAGE_NAME | tr '.' '/')
+          mkdir -p android/app/src/main/java/$PACKAGE_PATH
+          cat > android/app/src/main/java/$PACKAGE_PATH/MainActivity.java << EOF
+          package $PACKAGE_NAME;
+          
+          import io.flutter.embedding.android.FlutterActivity;
+          
+          public class MainActivity extends FlutterActivity {
+          }
           EOF
       
-      - name: Setup build.gradle
+      - name: Buat build.gradle (Java, tanpa Kotlin)
         run: |
+          PACKAGE_NAME="${{ steps.get_package.outputs.package_name }}"
+          
           cat > android/build.gradle << 'EOF'
           buildscript {
-              ext.kotlin_version = '1.9.22'
               repositories {
                   google()
                   mavenCentral()
               }
               dependencies {
-                  classpath 'com.android.tools.build:gradle:8.1.0'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-                  classpath 'com.google.gms:google-services:4.4.0'
+                  classpath 'com.android.tools.build:gradle:7.4.2'
+                  classpath 'com.google.gms:google-services:4.3.15'
               }
           }
           
@@ -72,10 +98,8 @@ jobs:
               }
           }
           EOF
-      
-      - name: Setup app/build.gradle
-        run: |
-          cat > android/app/build.gradle << 'EOF'
+          
+          cat > android/app/build.gradle << EOF
           def localProperties = new Properties()
           def localPropertiesFile = rootProject.file('local.properties')
           if (localPropertiesFile.exists()) {
@@ -90,10 +114,10 @@ jobs:
           }
           
           apply plugin: 'com.android.application'
-          apply plugin: 'kotlin-android'
-          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+          apply from: "\$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
           
           android {
+              namespace "$PACKAGE_NAME"
               compileSdk 34
               
               compileOptions {
@@ -101,16 +125,12 @@ jobs:
                   targetCompatibility JavaVersion.VERSION_17
               }
               
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
-              
               defaultConfig {
-                  applicationId "com.example.hutangin_apk"
+                  applicationId "$PACKAGE_NAME"
                   minSdk 21
                   targetSdk 34
                   versionCode 1
-                  versionName "1.0.0"
+                  versionName "1.0"
               }
               
               buildTypes {
@@ -127,22 +147,11 @@ jobs:
           apply plugin: 'com.google.gms.google-services'
           EOF
       
-      - name: Copy google-services.json
+      - name: Create local.properties
         run: |
-          cp ../backup/google-services.json android/app/
+          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
       
-      - name: Setup MainActivity
-        run: |
-          mkdir -p android/app/src/main/kotlin/com/example/hutangin_apk
-          cat > android/app/src/main/kotlin/com/example/hutangin_apk/MainActivity.kt << 'EOF'
-          package com.example.hutangin_apk
-          
-          import io.flutter.embedding.android.FlutterActivity
-          
-          class MainActivity: FlutterActivity()
-          EOF
-      
-      - name: Setup AndroidManifest
+      - name: Fix AndroidManifest
         run: |
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -158,15 +167,14 @@ jobs:
           </manifest>
           EOF
       
-      - name: Setup local.properties
+      - name: Clean cache total
         run: |
-          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
-      
-      - name: Copy lib and assets
-        run: |
-          cp -r ../backup/lib .
-          cp -r ../backup/assets . 2>/dev/null || true
-          cp ../backup/pubspec.yaml .
+          rm -rf ~/.gradle/caches/
+          rm -rf ~/.pub-cache
+          rm -rf android/.gradle
+          rm -rf .dart_tool
+          rm -f pubspec.lock
+          flutter clean
       
       - name: Get dependencies
         run: flutter pub get
