@@ -22,100 +22,42 @@ jobs:
           flutter-version: '3.44.1'
           channel: 'stable'
       
-      - name: Fix build.gradle with compileSdk 34
+      - name: Create fresh project structure
         run: |
-          cat > android/app/build.gradle << 'EOF'
-          def localProperties = new Properties()
-          def localPropertiesFile = rootProject.file('local.properties')
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader('UTF-8') { reader ->
-                  localProperties.load(reader)
-              }
-          }
+          # Backup lib dan assets
+          mkdir -p ../backup
+          cp -r lib ../backup/
+          cp -r assets ../backup/ 2>/dev/null || true
+          cp pubspec.yaml ../backup/
+          cp android/app/google-services.json ../backup/
           
-          def flutterRoot = localProperties.getProperty('flutter.sdk')
-          if (flutterRoot == null) {
-              throw new GradleException("Flutter SDK not found.")
-          }
+          # Hapus android folder
+          rm -rf android
           
-          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-          if (flutterVersionCode == null) {
-              flutterVersionCode = '1'
-          }
+          # Buat project Flutter baru
+          cd ..
+          flutter create --platforms=android --project-name=hutangin hutangin_fresh
           
-          def flutterVersionName = localProperties.getProperty('flutter.versionName')
-          if (flutterVersionName == null) {
-              flutterVersionName = '1.0'
-          }
+          # Copy kode lama
+          cp -r ../backup/lib/* hutangin_fresh/lib/
+          cp ../backup/pubspec.yaml hutangin_fresh/
+          cp -r ../backup/assets hutangin_fresh/ 2>/dev/null || true
+          cp ../backup/google-services.json hutangin_fresh/android/app/
           
-          apply plugin: 'com.android.application'
-          apply plugin: 'kotlin-android'
-          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+          # Copy android folder balik
+          cp -r hutangin_fresh/android ../hutangin/
           
-          android {
-              compileSdk 34
-              ndkVersion flutter.ndkVersion
-              
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              
-              kotlinOptions {
-                  jvmTarget = '17'
-                }
-              
-              defaultConfig {
-                  applicationId "com.example.hutangin_apk"
-                  minSdk 21
-                  targetSdk 34
-                  versionCode flutterVersionCode.toInteger()
-                  versionName flutterVersionName
-              }
-              
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.debug
-                  }
-              }
-          }
-          
-          flutter {
-              source '../..'
-          }
-          
-          dependencies {
-              implementation 'androidx.core:core-ktx:1.12.0'
-          }
-          
-          apply plugin: 'com.google.gms.google-services'
-          EOF
-          
-          cat > android/build.gradle << 'EOF'
-          buildscript {
-              ext.kotlin_version = '1.9.0'
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:7.4.2'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-                  classpath 'com.google.gms:google-services:4.4.0'
-              }
-          }
-          
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          
-          tasks.register("clean", Delete) {
-              delete rootProject.buildDir
-          }
-          EOF
+          cd ../hutangin
+      
+      - name: Fix google-services.json location
+        run: |
+          # Pastikan google-services.json ada di tempat yang benar
+          if [ -f "android/app/google-services.json" ]; then
+            echo "✅ google-services.json found"
+          else
+            echo "❌ google-services.json not found"
+            exit 1
+          fi
       
       - name: Get dependencies
         run: flutter pub get
