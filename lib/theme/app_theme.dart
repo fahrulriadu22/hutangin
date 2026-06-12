@@ -6,7 +6,6 @@ class AppTheme {
   static const Color dangerColor = Color(0xFFF44336);
   static const Color warningColor = Color(0xFFFFC107);
   static const Color backgroundColor = Color(0xFFF5F5F5);
-  static const Color cardColor = Colors.white;
   
   static ThemeData lightTheme = ThemeData(
     brightness: Brightness.light,
