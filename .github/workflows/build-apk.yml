@@ -30,14 +30,13 @@ jobs:
           cp -r assets ../backup/ 2>/dev/null || true
           cp android/app/google-services.json ../backup/ 2>/dev/null || true
       
-      - name: Delete old android folder
+      - name: Delete old android
         run: rm -rf android
       
-      - name: Create fresh Flutter project with v2 embedding
+      - name: Create fresh Flutter project
         run: |
           cd ..
           flutter create --platforms=android --project-name=hutangin hutangin_fresh
-          cd hutangin_fresh
       
       - name: Copy code to fresh project
         run: |
@@ -48,11 +47,11 @@ jobs:
       
       - name: Copy android folder back
         run: |
-          rm -rf android
           cp -r ../hutangin_fresh/android .
       
-      - name: Update build.gradle for compileSdk 34
+      - name: Fix build.gradle with compileSdk 34
         run: |
+          # Write correct build.gradle.kts
           cat > android/app/build.gradle.kts << 'EOF'
           plugins {
               id("com.android.application")
@@ -88,7 +87,38 @@ jobs:
               source = "../.."
           }
           
+          dependencies {
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.9.0")
+          }
+          
           apply(plugin = "com.google.gms.google-services")
+          EOF
+          
+          # Also fix root build.gradle
+          cat > android/build.gradle.kts << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath("com.android.tools.build:gradle:7.4.2")
+                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
+                  classpath("com.google.gms:google-services:4.4.0")
+              }
+          }
+          
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          
+          tasks.register("clean", Delete::class) {
+              delete(rootProject.buildDir)
+          }
           EOF
       
       - name: Get dependencies
